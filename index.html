@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>행운권 추첨기</title>
+    
+    <!-- 필수 라이브러리 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 기본 스타일 -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        
+        /* 애니메이션 키프레임 정의 */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(-25%); }
+            50% { transform: translateY(0); }
+        }
+        @keyframes ping {
+            75%, 100% { transform: scale(2); opacity: 0; }
+        }
+        @keyframes pulse {
+            50% { opacity: .5; }
+        }
+        
+        /* 유틸리티 클래스 */
+        .bg-gradient { background: linear-gradient(180deg, #7c3aed 0%, #2563eb 100%); }
+        .bg-white { background-color: white; }
+        .rounded { border-radius: 0.5rem; }
+        .shadow { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .p-4 { padding: 1rem; }
+        .m-4 { margin: 1rem; }
+        .text-center { text-align: center; }
+        .font-bold { font-weight: bold; }
+        .text-white { color: white; }
+        .text-purple { color: #7c3aed; }
+        .text-lg { font-size: 1.125rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-2xl { font-size: 1.5rem; }
+        .text-4xl { font-size: 2.25rem; }
+        .text-8xl { font-size: 6rem; }
+        .flex { display: flex; }
+        .flex-wrap { flex-wrap: wrap; }
+        .justify-between { justify-content: space-between; }
+        .items-center { align-items: center; }
+        .gap-2 { gap: 0.5rem; }
+        .w-full { width: 100%; }
+        .max-w-md { max-width: 28rem; }
+        .mx-auto { margin-left: auto; margin-right: auto; }
+        .my-2 { margin-top: 0.5rem; margin-bottom: 0.5rem; }
+        .mt-4 { margin-top: 1rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        
+        /* 애니메이션 클래스 */
+        .animate-bounce { animation: bounce 1s infinite; }
+        .animate-ping { animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite; }
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        
+        /* 버튼 스타일 */
+        .btn {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background-color: #7c3aed;
+            color: white;
+        }
+        .btn-primary:disabled {
+            background-color: #d1d5db;
+            cursor: not-allowed;
+        }
+        
+        /* 입력 필드 스타일 */
+        .input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            margin-top: 0.25rem;
+        }
+        
+        /* 모달 스타일 */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        /* 번호 표시 스타일 */
+        .number-tag {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            background-color: #7c3aed;
+            color: white;
+            font-weight: bold;
+            margin: 0.25rem;
+            transition: transform 0.2s;
+        }
+        .number-tag:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        const App = () => {
+            const [settings, setSettings] = useState({
+                minNumber: 1,
+                maxNumber: 100,
+                drawCount: 3,
+                eventName: '연말 행운 추첨'
+            });
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+            const [isDrawing, setIsDrawing] = useState(false);
+            const [currentNumber, setCurrentNumber] = useState("START!");
+            const [drawnNumbers, setDrawnNumbers] = useState([]);
+            const [remainingCount, setRemainingCount] = useState(settings.drawCount);
+            const [availableNumbers, setAvailableNumbers] = useState([]);
+            const [animationStyle, setAnimationStyle] = useState(0);
+            
+            const animations = [
+                'animate-bounce',
+                'animate-ping',
+                'animate-pulse'
+            ];
+            
+            useEffect(() => {
+                initializeGame();
+            }, [settings]);
+            
+            const initializeGame = () => {
+                const numbers = Array.from(
+                    { length: settings.maxNumber - settings.minNumber + 1 },
+                    (_, i) => i + settings.minNumber
+                );
+                setAvailableNumbers(numbers);
+                setRemainingCount(settings.drawCount);
+                setDrawnNumbers([]);
+                setCurrentNumber("START!");
+            };
+            
+            const saveSettings = (newSettings) => {
+                setSettings(newSettings);
+                setIsSettingsOpen(false);
+                initializeGame();
+            };
+            
+            const drawNumber = () => {
+                if (remainingCount <= 0 || isDrawing) return;
+                
+                setIsDrawing(true);
+                setAnimationStyle((prev) => (prev + 1) % animations.length);
+                
+                let counter = 0;
+                const maxCount = 30;
+                const interval = setInterval(() => {
+                    const randomIndex = Math.floor(Math.random() * availableNumbers.length);
+                    setCurrentNumber(availableNumbers[randomIndex]);
+                    counter++;
+                    
+                    if (counter >= maxCount) {
+                        clearInterval(interval);
+                        finalizeDrawing();
+                    }
+                }, 100);
+            };
+            
+            const finalizeDrawing = () => {
+                const randomIndex = Math.floor(Math.random() * availableNumbers.length);
+                const drawn = availableNumbers[randomIndex];
+                
+                setCurrentNumber(drawn);
+                setDrawnNumbers(prev => [...prev, drawn]);
+                setAvailableNumbers(prev => prev.filter(n => n !== drawn));
+                setRemainingCount(prev => prev - 1);
+                setIsDrawing(false);
+            };
+            
+            return (
+                <div className="bg-gradient min-h-screen p-4">
+                    <div className="bg-white rounded shadow max-w-md mx-auto p-4">
+                        {/* 헤더 */}
+                        <div className="flex justify-between items-center mb-4">
+                            <h1 className="text-2xl font-bold">{settings.eventName}</h1>
+                            <button 
+                                className="btn"
+                                onClick={() => setIsSettingsOpen(true)}
+                            >
+                                ⚙️
+                            </button>
+                        </div>
+                        
+                        {/* 메인 디스플레이 */}
+                        <div className="text-center my-2" style={{height: '200px'}}>
+                            <div className={`text-8xl font-bold ${isDrawing ? animations[animationStyle] : ''}`}>
+                                {currentNumber}
+                            </div>
+                        </div>
+                        
+                        {/* 상태 표시 */}
+                        <div className="text-center mb-4">
+                            <div className={`text-xl font-bold ${remainingCount > 0 ? 'text-purple' : 'text-red'}`}>
+                                남은 추첨 횟수: {remainingCount}
+                            </div>
+                        </div>
+                        
+                        {/* 추첨 버튼 */}
+                        <button 
+                            className="btn btn-primary w-full mb-4"
+                            onClick={drawNumber}
+                            disabled={remainingCount <= 0 || isDrawing}
+                        >
+                            {isDrawing ? "추첨 중..." : "추첨 시작"}
+                        </button>
+                        
+                        {/* 추첨된 번호 목록 */}
+                        <div className="mt-4">
+                            <h2 className="text-lg font-bold mb-2">추첨된 번호</h2>
+                            <div className="flex flex-wrap gap-2">
+                                {drawnNumbers.map((num, index) => (
+                                    <span key={index} className="number-tag">
+                                        {num}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        {/* 설정 모달 */}
+                        {isSettingsOpen && (
+                            <div className="modal-backdrop">
+                                <div className="bg-white rounded p-4 w-full max-w-md mx-4">
+                                    <h2 className="text-xl font-bold mb-4">설정</h2>
+                                    <div>
+                                        <label className="block mb-2">
+                                            이벤트 이름
+                                            <input
+                                                type="text"
+                                                className="input"
+                                                value={settings.eventName}
+                                                onChange={(e) => setSettings({...settings, eventName: e.target.value})}
+                                            />
+                                        </label>
+                                    </div>
+                                    <div>
+                                        <label className="block mb-2">
+                                            최소 번호
+                                            <input
+                                                type="number"
+                                                className="input"
+                                                value={settings.minNumber}
+                                                onChange={(e) => setSettings({...settings, minNumber: parseInt(e.target.value)})}
+                                            />
+                                        </label>
+                                    </div>
+                                    <div>
+                                        <label className="block mb-2">
+                                            최대 번호
+                                            <input
+                                                type="number"
+                                                className="input"
+                                                value={settings.maxNumber}
+                                                onChange={(e) => setSettings({...settings, maxNumber: parseInt(e.target.value)})}
+                                            />
+                                        </label>
+                                    </div>
+                                    <div>
+                                        <label className="block mb-2">
+                                            추첨 횟수
+                                            <input
+                                                type="number"
+                                                className="input"
+                                                value={settings.drawCount}
+                                                onChange={(e) => setSettings({...settings, drawCount: parseInt(e.target.value)})}
+                                            />
+                                        </label>
+                                    </div>
+                                    <div className="flex justify-between mt-4">
+                                        <button
+                                            className="btn"
+                                            onClick={() => setIsSettingsOpen(false)}
+                                        >
+                                            취소
+                                        </button>
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={() => saveSettings(settings)}
+                                        >
+                                            저장
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+        
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
